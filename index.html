@@ -1,0 +1,75 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Координатор выгула собак</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            boxShadow: {
+              'metal': 'inset 0 1px 0 0 rgba(255, 255, 255, 0.4), 0 2px 4px 0 rgba(0, 0, 0, 0.3)',
+              'metal-pressed': 'inset 0 2px 6px 0 rgba(0, 0, 0, 0.4), 0 1px 0 0 rgba(255,255,255,0.1)',
+              'plate': '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.3)',
+              'chrome': '0 1px 2px rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.7), inset 0 -2px 0 rgba(0,0,0,0.1)',
+            },
+            backgroundImage: {
+              'brushed': "url('https://www.transparenttextures.com/patterns/brushed-alum.png')",
+              'metal-gradient': 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 50%, #94a3b8 51%, #cbd5e1 100%)',
+              'gold-gradient': 'linear-gradient(135deg, #fce7f3 0%, #fde047 20%, #eab308 50%, #ca8a04 51%, #eab308 100%)',
+            },
+            dropShadow: {
+              'engraved': '0 1px 0 rgba(255, 255, 255, 0.5)',
+            }
+          }
+        }
+      }
+    </script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      body {
+        overflow: hidden;
+        background-color: #1a1a1a;
+      }
+      .no-scrollbar::-webkit-scrollbar {
+          display: none;
+      }
+      .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+      }
+      /* Эффект выгравированного текста */
+      .text-engraved {
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+      }
+      .dark .text-engraved {
+        text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.7);
+      }
+      /* Эффект вдавленного текста */
+      .text-pressed {
+        text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.5);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "zustand": "https://esm.sh/zustand@^5.0.9",
+    "@dnd-kit/utilities": "https://esm.sh/@dnd-kit/utilities@^3.2.2",
+    "@dnd-kit/core": "https://esm.sh/@dnd-kit/core@^6.3.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
