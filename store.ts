@@ -243,7 +243,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
   },
 
-  initTelegram: () => {
+  initTelegram: async () => {
     console.log('🔍 [TG] initTelegram called');
     
     // Проверяем параметр URL (для дебага в браузере)
@@ -253,72 +253,63 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.log('🔍 [TG] DEBUG режим, ID из URL:', debugUserId);
     }
     
+    // Ждём загрузки волонтеров перед проверкой
+    await get().loadVolunteers();
+    
     const tg = (window as any).Telegram?.WebApp;
     console.log('🔍 [TG] Telegram.WebApp объект:', tg ? '✅ найден' : '❌ не найден');
     
-    if (tg && tg.initDataUnsafe) {
-      console.log('🔍 [TG] initDataUnsafe:', tg.initDataUnsafe);
+    const volunteers = get().volunteers;
+    console.log('🔍 [TG] Волонтеров в базе:', volunteers.length);
+    
+    // ПРИОРИТЕТ 1: Настоящий Telegram (с initDataUnsafe.user)
+    if (tg && tg.initDataUnsafe?.user) {
       const tgUser = tg.initDataUnsafe.user;
-      console.log('🔍 [TG] User объект:', tgUser);
+      console.log('✅ [TG] Настоящий Telegram вход, User ID:', tgUser.id);
       
-      if (tgUser) {
-        const volunteers = get().volunteers;
-        console.log('🔍 [TG] Волонтеров в базе:', volunteers.length);
-        console.log('🔍 [TG] Ищу волонтера с ID:', tgUser.id);
-        
-        // Поиск волонтера по ID
-        let found = volunteers.find(v => {
-          const match = v.telegramId && String(v.telegramId).trim() === String(tgUser.id).trim();
-          if (match) {
-            console.log(`✅ [TG] Найден по ID: ${v.name}`);
-          }
-          return match;
-        });
+      // Поиск волонтера по ID
+      let found = volunteers.find(v => 
+        v.telegramId && String(v.telegramId).trim() === String(tgUser.id).trim()
+      );
   
-        // Если не найден по ID, ищем по username
-        if (!found && tgUser.username) {
-          console.log('🔍 [TG] ID не совпал, ищу по username:', tgUser.username);
-          found = volunteers.find(v => 
-            v.telegramUsername && 
-            v.telegramUsername.toLowerCase().trim() === tgUser.username?.toLowerCase().trim()
-          );
-          if (found) {
-            console.log(`✅ [TG] Найден по username: ${found.name}`);
-          }
-        }
-  
-        if (found) {
-          console.log(`✅ [TG] УСПЕШНО авторизован: ${found.name} (ID: ${found.telegramId})`);
-          get().login(found);
-          tg.expand(); // Разворачиваем окно на весь экран
-        } else {
-          console.log('❌ [TG] Волонтер НЕ НАЙДЕН в базе');
-          console.log('📋 [TG] Доступные ID:', volunteers.map(v => `${v.name}:${v.telegramId}`));
-          console.log('📋 [TG] Ищемый ID:', tgUser.id);
-          console.log('📋 [TG] Ищемый username:', tgUser.username);
-        }
-      } else {
-        console.log('❌ [TG] User в initDataUnsafe не найден');
+      // Если не найден по ID, ищем по username
+      if (!found && tgUser.username) {
+        found = volunteers.find(v => 
+          v.telegramUsername && 
+          v.telegramUsername.toLowerCase().trim() === tgUser.username?.toLowerCase().trim()
+        );
       }
-    } else {
-      console.log('❌ [TG] Telegram.WebApp или initDataUnsafe не доступны');
-      console.log('💡 [TG] Попробуй открыть через параметр: ?tg_user_id=822402');
-      
-      // Резервный вариант: если есть параметр URL
-      if (debugUserId) {
-        console.log(`🔍 [TG] Используем DEBUG ID: ${debugUserId}`);
-        const volunteers = get().volunteers;
-        const found = volunteers.find(v => String(v.telegramId) === debugUserId);
-        if (found) {
-          console.log(`✅ [TG] DEBUG: авторизован ${found.name}`);
-          get().login(found);
-        } else {
-          console.log(`❌ [TG] DEBUG: волонтер с ID ${debugUserId} не найден`);
-        }
+  
+      if (found) {
+        console.log(`✅ [TG] АВТОРИЗОВАН: ${found.name} (ID: ${found.telegramId})`);
+        get().login(found);
+        tg.expand();
+      } else {
+        console.log('❌ [TG] Волонтер не найден в базе');
+        console.log('📋 [TG] Доступные:', volunteers.map(v => `${v.name}:${v.telegramId}`));
       }
     }
+    // ПРИОРИТЕТ 2: DEBUG режим через параметр URL
+    else if (debugUserId) {
+      console.log(`🔍 [TG] Используем DEBUG ID из URL: ${debugUserId}`);
+      
+      const found = volunteers.find(v => 
+        String(v.telegramId).trim() === String(debugUserId).trim()
+      );
+      
+      if (found) {
+        console.log(`✅ [TG] DEBUG АВТОРИЗОВАН: ${found.name}`);
+        get().login(found);
+      } else {
+        console.log(`❌ [TG] DEBUG: волонтер с ID ${debugUserId} не найден`);
+        console.log('📋 [TG] Доступные ID:', volunteers.map(v => `${v.name}:${v.telegramId}`));
+      }
+    }
+    else {
+      console.log('❌ [TG] Ни Telegram, ни DEBUG параметр не найдены');
+      console.log('💡 [TG] Для тестирования используй: ?tg_user_id=822402897');
+    }
   },
-  
 
   login: (user) => set({ currentUser: user.name, currentUserId: user.id }),
   setTeam: (teamId) => { set({ currentTeamId: teamId }); get().saveSetting('currentTeamId', teamId); },
