@@ -243,71 +243,48 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
   },
 
-  initTelegram: async () => {
+  initTelegram: () => {
     console.log('🔍 [TG] initTelegram called');
+    const tg = (window as any).Telegram?.WebApp;
+    const volunteers = get().volunteers;
     
-    // Проверяем параметр URL (для дебага в браузере)
+    // Параметр для отладки в браузере
     const urlParams = new URLSearchParams(window.location.search);
     const debugUserId = urlParams.get('tg_user_id');
+
+    if (tg) {
+        tg.ready(); // Сообщаем ТГ, что приложение готово
+        
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            const tgUser = tg.initDataUnsafe.user;
+            console.log('🔍 [TG] User data found:', tgUser);
+            
+            let found = volunteers.find(v => 
+                (v.telegramId && String(v.telegramId).trim() === String(tgUser.id)) ||
+                (v.telegramUsername && tgUser.username && v.telegramUsername.toLowerCase().trim() === tgUser.username.toLowerCase().trim())
+            );
+
+            if (found) {
+                console.log(`✅ [TG] Авторизован: ${found.name}`);
+                get().login(found);
+                tg.expand();
+                return;
+            } else {
+                console.log('❌ [TG] Пользователь не найден в базе волонтеров');
+            }
+        } else {
+            console.log('⚠️ [TG] initDataUnsafe пуст. Возможно запуск не из ТГ.');
+        }
+    }
+
+    // Резервный дебаг-вход (если ТГ не вернул данные или мы в браузере)
     if (debugUserId) {
-      console.log('🔍 [TG] DEBUG режим, ID из URL:', debugUserId);
-    }
-    
-    // Ждём загрузки волонтеров перед проверкой
-    await get().loadVolunteers();
-    
-    const tg = (window as any).Telegram?.WebApp;
-    console.log('🔍 [TG] Telegram.WebApp объект:', tg ? '✅ найден' : '❌ не найден');
-    
-    const volunteers = get().volunteers;
-    console.log('🔍 [TG] Волонтеров в базе:', volunteers.length);
-    
-    // ПРИОРИТЕТ 1: Настоящий Telegram (с initDataUnsafe.user)
-    if (tg && tg.initDataUnsafe?.user) {
-      const tgUser = tg.initDataUnsafe.user;
-      console.log('✅ [TG] Настоящий Telegram вход, User ID:', tgUser.id);
-      
-      // Поиск волонтера по ID
-      let found = volunteers.find(v => 
-        v.telegramId && String(v.telegramId).trim() === String(tgUser.id).trim()
-      );
-  
-      // Если не найден по ID, ищем по username
-      if (!found && tgUser.username) {
-        found = volunteers.find(v => 
-          v.telegramUsername && 
-          v.telegramUsername.toLowerCase().trim() === tgUser.username?.toLowerCase().trim()
-        );
-      }
-  
-      if (found) {
-        console.log(`✅ [TG] АВТОРИЗОВАН: ${found.name} (ID: ${found.telegramId})`);
-        get().login(found);
-        tg.expand();
-      } else {
-        console.log('❌ [TG] Волонтер не найден в базе');
-        console.log('📋 [TG] Доступные:', volunteers.map(v => `${v.name}:${v.telegramId}`));
-      }
-    }
-    // ПРИОРИТЕТ 2: DEBUG режим через параметр URL
-    else if (debugUserId) {
-      console.log(`🔍 [TG] Используем DEBUG ID из URL: ${debugUserId}`);
-      
-      const found = volunteers.find(v => 
-        String(v.telegramId).trim() === String(debugUserId).trim()
-      );
-      
-      if (found) {
-        console.log(`✅ [TG] DEBUG АВТОРИЗОВАН: ${found.name}`);
-        get().login(found);
-      } else {
-        console.log(`❌ [TG] DEBUG: волонтер с ID ${debugUserId} не найден`);
-        console.log('📋 [TG] Доступные ID:', volunteers.map(v => `${v.name}:${v.telegramId}`));
-      }
-    }
-    else {
-      console.log('❌ [TG] Ни Telegram, ни DEBUG параметр не найдены');
-      console.log('💡 [TG] Для тестирования используй: ?tg_user_id=822402897');
+        console.log(`🔍 [TG] DEBUG вход по ID: ${debugUserId}`);
+        const found = volunteers.find(v => String(v.telegramId).trim() === String(debugUserId).trim());
+        if (found) {
+            console.log(`✅ [TG] DEBUG: Авторизован ${found.name}`);
+            get().login(found);
+        }
     }
   },
 
