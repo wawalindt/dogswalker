@@ -1,3 +1,4 @@
+
 export interface Team {
   id: string;
   name: string;
@@ -52,6 +53,7 @@ export interface User {
   status: 'active' | 'inactive';
   experience?: 'novice' | 'experienced';
   lastLogin?: string;
+  teamId?: string;
 }
 
 export interface ValidationIssue {

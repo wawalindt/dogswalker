@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppStore } from '../store';
 import { User } from '../types';
 
@@ -7,16 +7,22 @@ const EmptyUser: User = {
     id: '',
     name: '',
     telegramId: '',
+    telegramUsername: '',
     role: 'volunteer',
     status: 'active',
-    experience: 'novice'
+    experience: 'novice',
+    teamId: ''
 };
 
 export const VolunteerListModal: React.FC = () => {
-    const { volunteers, addVolunteer, updateVolunteer, setActiveModal, theme } = useAppStore();
+    const { volunteers, addVolunteer, updateVolunteer, setActiveModal, theme, currentTeamId } = useAppStore();
     const [view, setView] = useState<'list' | 'form'>('list');
     const [formData, setFormData] = useState<User>(EmptyUser);
     const [isEditing, setIsEditing] = useState(false);
+
+    const teamVolunteers = useMemo(() => {
+        return volunteers.filter(v => v.teamId === currentTeamId || !v.teamId);
+    }, [volunteers, currentTeamId]);
 
     const handleEdit = (user: User) => {
         setFormData({ ...user });
@@ -25,7 +31,7 @@ export const VolunteerListModal: React.FC = () => {
     };
 
     const handleAdd = () => {
-        setFormData({ ...EmptyUser, id: `u${Date.now()}` });
+        setFormData({ ...EmptyUser, id: `u${Date.now()}`, teamId: currentTeamId || '' });
         setIsEditing(false);
         setView('form');
     };
@@ -67,7 +73,7 @@ export const VolunteerListModal: React.FC = () => {
                     
                     {view === 'list' ? (
                         <div className="space-y-3">
-                            {volunteers.map(user => (
+                            {teamVolunteers.map(user => (
                                 <div key={user.id} onClick={() => handleEdit(user)} className="flex flex-col p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-300 dark:border-slate-700 active:scale-[0.99] transition-transform cursor-pointer shadow-sm hover:border-blue-400 dark:hover:border-blue-600">
                                      <div className="flex justify-between items-start mb-1">
                                         <div>
@@ -75,17 +81,19 @@ export const VolunteerListModal: React.FC = () => {
                                                 {user.name}
                                                 {user.role === 'coordinator' && <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-200 text-[9px] uppercase font-black">Coord</span>}
                                             </div>
-                                            <div className="text-[10px] text-slate-400 font-mono">TG: {user.telegramId || '—'}</div>
+                                            <div className="text-[10px] text-slate-400 font-mono">TG ID: {user.telegramId || '—'}</div>
+                                            {user.telegramUsername && <div className="text-[10px] text-slate-400 font-mono">@{user.telegramUsername}</div>}
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
                                             <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase border shadow-sm ${user.status === 'active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                                                {user.status}
+                                                {user.status === 'active' ? 'ACTIVE' : 'INACTIVE'}
                                             </span>
                                             <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wide">{user.experience || 'novice'}</span>
                                         </div>
                                      </div>
                                 </div>
                             ))}
+                            {teamVolunteers.length === 0 && <div className="text-center py-10 text-slate-400 text-sm">В этой команде пока нет волонтеров</div>}
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -104,13 +112,24 @@ export const VolunteerListModal: React.FC = () => {
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1 tracking-wider">Telegram ID</label>
-                                <input 
-                                    value={formData.telegramId || ''} 
-                                    onChange={e => setFormData({...formData, telegramId: e.target.value})}
-                                    className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm" 
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1 tracking-wider">Telegram ID</label>
+                                    <input 
+                                        value={formData.telegramId || ''} 
+                                        onChange={e => setFormData({...formData, telegramId: e.target.value})}
+                                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1 tracking-wider">Telegram Username</label>
+                                    <input 
+                                        value={formData.telegramUsername || ''} 
+                                        onChange={e => setFormData({...formData, telegramUsername: e.target.value})}
+                                        placeholder="без @"
+                                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm" 
+                                    />
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -138,16 +157,26 @@ export const VolunteerListModal: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1 tracking-wider">Статус</label>
-                                <select 
-                                    value={formData.status} 
-                                    onChange={e => setFormData({...formData, status: e.target.value as 'active' | 'inactive'})}
-                                    className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
-                                >
-                                    <option value="active">Активен</option>
-                                    <option value="inactive">Неактивен</option>
-                                </select>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1 tracking-wider">Статус</label>
+                                    <select 
+                                        value={formData.status} 
+                                        onChange={e => setFormData({...formData, status: e.target.value as 'active' | 'inactive'})}
+                                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium"
+                                    >
+                                        <option value="active">Активен</option>
+                                        <option value="inactive">Неактивен</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1 tracking-wider">Команда (ID)</label>
+                                    <input 
+                                        value={formData.teamId || ''} 
+                                        onChange={e => setFormData({...formData, teamId: e.target.value})}
+                                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm" 
+                                    />
+                                </div>
                             </div>
 
                             <div className="pt-4 flex gap-3">

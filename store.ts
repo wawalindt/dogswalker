@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { Dog, Team, WalkGroup, User, ValidationIssue, ActiveModal } from './types';
 import { INITIAL_DOGS, INITIAL_GROUPS, TEAMS, VOLUNTEERS } from './mockData';
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbwzLNZ3C7FqdVgTWUCvKjFlweem1BMToNadlQbKaS-ui8OquZthMMX3TgLMn_BdNiyC/exec'; 
+const API_URL = 'https://script.google.com/macros/s/AKfycbxKNV2BSNuPd_mm7MsRXAWyKBQM4yqC5JDyscmzdaK9Y80FkXw-2DeeExdGLVllU5d1/exec'; 
 
 type Theme = 'light' | 'dark';
 type SidebarFilter = 'all' | 'available';
@@ -117,7 +117,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   groups: [], 
   teams: TEAMS,
   volunteers: [], 
-  theme: 'dark',
+  theme: (localStorage.getItem('app-theme') as Theme) || 'dark',
   editingGroupId: null,
   activeModal: 'none',
   infoDogId: null,
@@ -132,6 +132,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   saveSetting: (key, value) => {
+      if (key === 'theme') return; // Больше не сохраняем тему на сервере
       sendAction('saveSetting', { key, value });
   },
 
@@ -214,6 +215,12 @@ export const useAppStore = create<AppState>((set, get) => ({
                       durationMinutes: Number(g.durationMinutes || 0)
                   }));
 
+              const sanitizedVolunteers = (data.volunteers || []).map((v: any) => ({
+                  ...v,
+                  id: String(v.id),
+                  teamId: v.teamId || ''
+              }));
+
               let remoteVersion = 0;
               const settingsUpdates: any = {};
               const versionKey = `db_version_${state.currentTeamId}`;
@@ -222,7 +229,6 @@ export const useAppStore = create<AppState>((set, get) => ({
                   data.settings.forEach((s: any) => {
                       if (s.key === 'walkDuration') settingsUpdates.walkDuration = Number(s.value);
                       if (s.key === 'autoAddFriends') settingsUpdates.autoAddFriends = String(s.value) === 'true';
-                      if (s.key === 'theme') settingsUpdates.theme = s.value as Theme;
                       if (s.key === 'currentTeamId') settingsUpdates.currentTeamId = s.value;
                       if (s.key === versionKey) remoteVersion = Number(s.value);
                   });
@@ -230,7 +236,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
               set({ 
                   dogs: sanitizedDogs,
-                  volunteers: data.volunteers || [],
+                  volunteers: sanitizedVolunteers,
                   groups: sanitizedGroups,
                   syncVersion: Math.max(state.syncVersion, remoteVersion),
                   ...settingsUpdates,
@@ -248,41 +254,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     const tg = (window as any).Telegram?.WebApp;
     const volunteers = get().volunteers;
     
-    // Параметр для отладки в браузере
     const urlParams = new URLSearchParams(window.location.search);
     const debugUserId = urlParams.get('tg_user_id');
 
     if (tg) {
-        tg.ready(); // Сообщаем ТГ, что приложение готово
-        
+        tg.ready(); 
         if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
             const tgUser = tg.initDataUnsafe.user;
-            console.log('🔍 [TG] User data found:', tgUser);
-            
             let found = volunteers.find(v => 
                 (v.telegramId && String(v.telegramId).trim() === String(tgUser.id)) ||
                 (v.telegramUsername && tgUser.username && v.telegramUsername.toLowerCase().trim() === tgUser.username.toLowerCase().trim())
             );
-
             if (found) {
-                console.log(`✅ [TG] Авторизован: ${found.name}`);
                 get().login(found);
                 tg.expand();
                 return;
-            } else {
-                console.log('❌ [TG] Пользователь не найден в базе волонтеров');
             }
-        } else {
-            console.log('⚠️ [TG] initDataUnsafe пуст. Возможно запуск не из ТГ.');
         }
     }
 
-    // Резервный дебаг-вход (если ТГ не вернул данные или мы в браузере)
     if (debugUserId) {
-        console.log(`🔍 [TG] DEBUG вход по ID: ${debugUserId}`);
         const found = volunteers.find(v => String(v.telegramId).trim() === String(debugUserId).trim());
         if (found) {
-            console.log(`✅ [TG] DEBUG: Авторизован ${found.name}`);
             get().login(found);
         }
     }
@@ -293,7 +286,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleTheme: () => {
       set((state) => {
           const newTheme = state.theme === 'dark' ? 'light' : 'dark';
-          get().saveSetting('theme', newTheme);
+          localStorage.setItem('app-theme', newTheme);
           return { theme: newTheme };
       });
   },
@@ -398,7 +391,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (groupDogs.length === 0) return [{ type: 'warning', message: 'Группа пуста.' }];
 
     groupDogs.forEach(dog => {
-        // 1. Проверка конфликтов (Critical)
         const enemiesInGroup = groupDogs.filter(other => dog.conflicts.includes(other.id) || other.conflicts.includes(dog.id));
         if (enemiesInGroup.length > 0) {
             enemiesInGroup.forEach(enemy => { 
@@ -408,27 +400,18 @@ export const useAppStore = create<AppState>((set, get) => ({
             });
         }
 
-        // 2. Проверка друзей (Warning) - УТОЧНЕННАЯ ЛОГИКА
         if (dog.pairs && dog.pairs.length > 0) {
             dog.pairs.forEach(friendId => {
                 if (!groupDogIds.has(friendId)) {
                     const friendDog = state.dogs.find(d => d.id === friendId);
                     if (!friendDog) return;
-
-                    // Проверяем, гуляет ли друг прямо сейчас (находится в активной группе)
                     const friendGroup = friendDog.groupId ? state.groups.find(g => String(g.id) === String(friendDog.groupId)) : null;
                     const isFriendActive = friendGroup && friendGroup.status === 'active';
-
-                    // Предупреждаем только если:
-                    // - Друг доступен (здоров, виден, WalksToday === 0)
-                    // - Друг НЕ находится в активной группе прямо сейчас
-                    // - Друг либо в сайдбаре (groupId === null), либо в другой формируемой группе (groupId !== null && status === 'forming')
                     if (!friendDog.isHidden && 
                         friendDog.health === 'OK' && 
                         friendDog.walksToday === 0 && 
                         !isFriendActive &&
                         friendDog.teamId === dog.teamId) {
-                        
                         const msg = `${dog.name} и ${friendDog.name} обычно гуляют вместе.`;
                         if (!issues.some(i => i.message === msg)) {
                             issues.push({ type: 'warning', message: msg });
@@ -468,7 +451,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         sendAction('resetWalks', {});
       }
   },
-  addVolunteer: (user) => { set((state) => ({ volunteers: [...state.volunteers, user] })); sendAction('addVolunteer', user); },
-  updateVolunteer: (id, updates) => { set((state) => ({ volunteers: state.volunteers.map(v => v.id === id ? { ...v, ...updates } : v) })); sendAction('updateVolunteer', { id, updates }); },
+  addVolunteer: (user) => { 
+      const userWithTeam = { ...user, teamId: get().currentTeamId || '' };
+      set((state) => ({ volunteers: [...state.volunteers, userWithTeam] })); 
+      sendAction('addVolunteer', userWithTeam); 
+  },
+  updateVolunteer: (id, updates) => { 
+      set((state) => ({ volunteers: state.volunteers.map(v => v.id === id ? { ...v, ...updates } : v) })); 
+      sendAction('updateVolunteer', { id, updates }); 
+  },
   deactivateVolunteer: (id) => get().updateVolunteer(id, { status: 'inactive' }),
 }));

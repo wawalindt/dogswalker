@@ -11,14 +11,12 @@ const TTL_DAYS = 365;
 
 /**
  * Глобальная обертка для обработки ошибок и возврата JSON.
- * Предотвращает возврат HTML-страниц ошибок, которые гарантированно блокируются CORS в браузере.
  */
 function safeExecute(fn) {
   try {
     return fn();
   } catch (error) {
     console.error("Critical server error: " + error.toString());
-    // Всегда возвращаем JSON, даже при фатальной ошибке
     return ContentService.createTextOutput(JSON.stringify({ 
       status: 'error', 
       message: "GAS_SERVER_CRITICAL: " + error.toString() 
@@ -72,6 +70,9 @@ function doPost(e) {
         case 'addVolunteer': 
           appendRow(ss, SHEETS.VOLUNTEERS, data.payload); 
           break;
+        case 'updateVolunteer': 
+          updateRow(ss, SHEETS.VOLUNTEERS, data.payload.id, data.payload.updates); 
+          break;
         case 'createGroup':
           const groupPayload = data.payload;
           const exp = new Date();
@@ -118,7 +119,9 @@ function getNormalizedData(ss, sheetName) {
     'walkstoday': 'walksToday', 'lastwalktime': 'lastWalkTime', 
     'groupid': 'groupId', 'ishidden': 'isHidden', 'status': 'status',
     'volunteername': 'volunteerName', 'volunteerid': 'volunteerId',
-    'starttime': 'startTime', 'endtime': 'endTime', 'durationminutes': 'durationMinutes'
+    'starttime': 'startTime', 'endtime': 'endTime', 'durationminutes': 'durationMinutes',
+    'telegramid': 'telegramId', 'telegramusername': 'telegramUsername', 'role': 'role',
+    'experience': 'experience', 'lastlogin': 'lastLogin'
   };
 
   return data.slice(1).map(row => {
@@ -184,7 +187,6 @@ function finishWalkInSheet(ss, groupId, dogIds, endTime, durationMinutes) {
     }
   });
 
-  // Дополнительная зачистка: если какая-то собака все еще числится в этой группе, освобождаем её
   if (gIdCol > 0) {
     const targetGroupId = String(groupId).trim();
     for (let i = 1; i < dogData.length; i++) {
@@ -198,6 +200,7 @@ function finishWalkInSheet(ss, groupId, dogIds, endTime, durationMinutes) {
 function findRowIndexById(sheet, id) {
   if (!sheet) return null;
   const data = sheet.getDataRange().getValues();
+  if (data.length < 1) return null;
   const idCol = findColumn(data[0], 'id');
   if (idCol === 0) return null;
   const targetId = String(id).trim();
@@ -261,7 +264,12 @@ function appendRow(ss, sheetName, dataObj) {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const newRow = headers.map(h => {
     const norm = h.toString().trim().toLowerCase().replace(/[^a-z]/g, '');
-    return dataObj[h] !== undefined ? dataObj[h] : (dataObj[norm] !== undefined ? dataObj[norm] : "");
+    const map = {
+      'teamid': 'teamId', 'telegramid': 'telegramId', 'telegramusername': 'telegramUsername',
+      'volunteername': 'volunteerName', 'volunteerid': 'volunteerId'
+    };
+    const key = map[norm] || norm;
+    return dataObj[key] !== undefined ? dataObj[key] : (dataObj[norm] !== undefined ? dataObj[norm] : "");
   });
   sheet.appendRow(newRow);
 }
