@@ -207,7 +207,7 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-center gap-3 relative z-10">
              {!logoError ? <img src="logo.png" onError={() => setLogoError(true)} className="w-9 h-9 rounded-full object-cover shadow-plate border-2 border-amber-300/50" alt="Logo" /> : <div className="w-9 h-9 rounded-full bg-amber-900/40 border-2 border-amber-300/30 flex items-center justify-center text-lg shadow-inner text-amber-100">🐕</div>}
              <h1 className="font-black text-base leading-tight text-amber-50 text-shadow-md">
-                {currentTeamId ? currentTeam?.name : 'Приют'} <span className="text-amber-200 ml-1 font-mono text-[9px] opacity-70">v0.56</span>
+                {currentTeamId ? currentTeam?.name : 'Приют'} <span className="text-amber-200 ml-1 font-mono text-[9px] opacity-70">v0.62</span>
              </h1>
           </div>
           <div className="flex items-center gap-3 text-[11px] font-bold text-amber-100 relative z-10">
