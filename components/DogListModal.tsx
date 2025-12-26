@@ -45,9 +45,14 @@ const DogSelector: React.FC<DogSelectorProps> = ({ label, selectedIds, otherSele
     }, [isOpen]);
 
     const filteredDogs = useMemo(() => {
+        const query = search.toLowerCase();
         return allDogs
             .filter(d => d.id !== currentDogId && !d.isHidden)
-            .filter(d => d.name.toLowerCase().includes(search.toLowerCase()) || d.id.includes(search));
+            .filter(d => {
+                const name = String(d.name || '').toLowerCase();
+                const id = String(d.id || '').toLowerCase();
+                return name.includes(query) || id.includes(query);
+            });
     }, [allDogs, currentDogId, search]);
 
     const themeColors = type === 'pair' 
@@ -159,16 +164,16 @@ export const DogListModal: React.FC = () => {
     const sortedDogs = useMemo(() => {
         return [...dogs].sort((a, b) => {
             if (sortOrder === 'name') {
-                return a.name.localeCompare(b.name);
+                return String(a.name).localeCompare(String(b.name));
             } else if (sortOrder === 'id') {
                 const aIdNum = parseInt(a.id);
                 const bIdNum = parseInt(b.id);
                 if (!isNaN(aIdNum) && !isNaN(bIdNum)) return aIdNum - bIdNum;
-                return a.id.localeCompare(b.id);
+                return String(a.id).localeCompare(String(b.id));
             } else if (sortOrder === 'row') {
                 const aRow = a.row || 'zzzz';
                 const bRow = b.row || 'zzzz';
-                return aRow.localeCompare(bRow, undefined, { numeric: true });
+                return String(aRow).localeCompare(String(bRow), undefined, { numeric: true });
             }
             return 0;
         });
@@ -181,7 +186,14 @@ export const DogListModal: React.FC = () => {
     };
 
     const handleAdd = () => {
-        setFormData({ ...EmptyDog, id: Date.now().toString() }); 
+        // Логика: находим максимальный числовой ID и прибавляем 1. Минимум 100.
+        const numericIds = dogs
+            .map(d => parseInt(d.id))
+            .filter(n => !isNaN(n));
+        const maxId = numericIds.length > 0 ? Math.max(...numericIds) : 99;
+        const nextId = (maxId + 1).toString();
+        
+        setFormData({ ...EmptyDog, id: nextId }); 
         setIsEditing(false);
         setView('form');
     };
@@ -267,7 +279,7 @@ export const DogListModal: React.FC = () => {
 
     return (
         <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 ${theme}`}>
-            <div className="bg-[#e2e8f0] dark:bg-[#1e293b] rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] flex flex-col border-2 border-slate-300 dark:border-slate-600 overflow-hidden">
+            <div className="bg-[#e2e8f0] dark:bg-[#1e293b] rounded-2xl shadow-2xl w-full max-lg h-[85vh] flex flex-col border-2 border-slate-300 dark:border-slate-600 overflow-hidden">
                 
                 {/* Header */}
                 <div className="p-4 border-b border-slate-300 dark:border-slate-600 flex justify-between items-center bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-900">
