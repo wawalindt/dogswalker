@@ -123,7 +123,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeModal: 'none',
   infoDogId: null,
   sidebarFilter: 'available',
-  sortOrder: 'id', 
+  sortOrder: (localStorage.getItem('app-sort-order') as SortOrder) || 'id', 
   walkDuration: 30, 
   autoAddFriends: true,
 
@@ -312,7 +312,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   setActiveModal: (modal) => set({ activeModal: modal }),
   setInfoDogId: (id) => set({ infoDogId: id }),
   toggleSidebarFilter: () => set(state => ({ sidebarFilter: state.sidebarFilter === 'all' ? 'available' : 'all' })),
-  setSortOrder: (order) => set({ sortOrder: order }),
+  setSortOrder: (order) => {
+      localStorage.setItem('app-sort-order', order);
+      set({ sortOrder: order });
+  },
   setWalkDuration: (minutes) => { set({ walkDuration: minutes }); get().saveSetting('walkDuration', minutes); },
   setAutoAddFriends: (value) => { set({ autoAddFriends: value }); get().saveSetting('autoAddFriends', value); },
   setEditingGroup: (groupId) => set({ editingGroupId: groupId }),
