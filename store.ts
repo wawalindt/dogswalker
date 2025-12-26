@@ -192,6 +192,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               const sanitizedDogs = (data.dogs || []).map((d: any) => ({
                   ...d,
                   id: String(d.id), 
+                  name: String(d.name || ''), // КРИТИЧНО: Приведение к строке
                   groupId: (!d.groupId || d.groupId === 'null' || d.groupId === '') ? null : String(d.groupId),
                   walksToday: Number(d.walksToday || 0),
                   age: Number(d.age || 0),
@@ -219,6 +220,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               const sanitizedVolunteers = (data.volunteers || []).map((v: any) => ({
                   ...v,
                   id: String(v.id),
+                  name: String(v.name || ''),
                   teamId: v.teamId || ''
               }));
 
