@@ -84,6 +84,7 @@ const sendAction = async (action: string, payload: any) => {
 const parseList = (input: any): string[] => {
     if (!input) return [];
     if (Array.isArray(input)) return input.map(String);
+    // Поддержка и запятых, и пробелов как разделителей
     return String(input).replace(/,/g, ' ').split(/\s+/).map(s => s.trim()).filter(s => s !== '');
 };
 
@@ -256,6 +257,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     const urlParams = new URLSearchParams(window.location.search);
     const debugUserId = urlParams.get('tg_user_id');
+    const debugUsername = urlParams.get('tg_username');
 
     if (tg) {
         tg.ready(); 
@@ -266,6 +268,7 @@ export const useAppStore = create<AppState>((set, get) => ({
                 (v.telegramUsername && tgUser.username && v.telegramUsername.toLowerCase().trim() === tgUser.username.toLowerCase().trim())
             );
             if (found) {
+                console.log(`✅ [TG] Авторизован через WebApp: ${found.name}`);
                 get().login(found);
                 tg.expand();
                 return;
@@ -273,10 +276,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
     }
 
+    // Вход через параметры URL (имитация "командной строки" или внешнего вызова)
     if (debugUserId) {
         const found = volunteers.find(v => String(v.telegramId).trim() === String(debugUserId).trim());
         if (found) {
+            console.log(`✅ [TG] Авторизован через URL ID: ${found.name}`);
             get().login(found);
+            return;
+        }
+    }
+
+    if (debugUsername) {
+        // Убираем @ если пользователь ввел его в параметре
+        const cleanUsername = debugUsername.replace(/^@/, '').toLowerCase().trim();
+        const found = volunteers.find(v => v.telegramUsername && v.telegramUsername.toLowerCase().trim() === cleanUsername);
+        if (found) {
+            console.log(`✅ [TG] Авторизован через URL Username: ${found.name}`);
+            get().login(found);
+            return;
         }
     }
   },
@@ -428,14 +445,29 @@ export const useAppStore = create<AppState>((set, get) => ({
           dogs: [...state.dogs, dog],
           syncVersion: state.syncVersion + 1 
       }));
-      sendAction('addDog', { ...dog, complexity: dog.complexity, pairs: dog.pairs.join(' '), conflicts: dog.conflicts.join(' ') });
+      // Для Google Sheets объединяем списки через ПРОБЕЛ
+      sendAction('addDog', { 
+          ...dog, 
+          complexity: dog.complexity, 
+          pairs: dog.pairs.join(' '), 
+          conflicts: dog.conflicts.join(' ') 
+      });
   },
   updateDog: (id, updates) => {
+      // Подготовка данных для сервера: массивы в строку через пробел
+      const sanitizedUpdates = { ...updates };
+      if (sanitizedUpdates.pairs && Array.isArray(sanitizedUpdates.pairs)) {
+          sanitizedUpdates.pairs = (sanitizedUpdates.pairs as string[]).join(' ') as any;
+      }
+      if (sanitizedUpdates.conflicts && Array.isArray(sanitizedUpdates.conflicts)) {
+          sanitizedUpdates.conflicts = (sanitizedUpdates.conflicts as string[]).join(' ') as any;
+      }
+
       set((state) => ({ 
           dogs: state.dogs.map(d => d.id === id ? { ...d, ...updates } : d),
           syncVersion: state.syncVersion + 1 
       }));
-      sendAction('updateDog', { id, updates });
+      sendAction('updateDog', { id, updates: sanitizedUpdates });
   },
   toggleDogVisibility: (dogId) => {
       const dog = get().dogs.find(d => d.id === dogId);

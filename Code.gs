@@ -219,7 +219,8 @@ function updateRow(ss, sheetName, id, updates) {
     const colIndex = findColumn(headers, key);
     if (colIndex > 0) {
       let val = updates[key];
-      if (Array.isArray(val)) val = val.join(',');
+      // Используем ПРОБЕЛ для объединения массивов (pairs/conflicts)
+      if (Array.isArray(val)) val = val.join(' ');
       sheet.getRange(rowIndex, colIndex).setValue(val);
     }
   }
@@ -262,14 +263,26 @@ function appendRow(ss, sheetName, dataObj) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) return;
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  
+  const map = {
+    'id': 'id', 'name': 'name', 'age': 'age', 'weight': 'weight', 'row': 'row',
+    'notes': 'notes', 'health': 'health', 'complexity': 'complexity', 
+    'pairs': 'pairs', 'conflicts': 'conflicts', 'teamid': 'teamId', 
+    'walkstoday': 'walksToday', 'lastwalktime': 'lastWalkTime', 
+    'groupid': 'groupId', 'ishidden': 'isHidden', 'status': 'status',
+    'volunteername': 'volunteerName', 'volunteerid': 'volunteerId',
+    'starttime': 'startTime', 'endtime': 'endTime', 'durationminutes': 'durationMinutes',
+    'telegramid': 'telegramId', 'telegramusername': 'telegramUsername', 'role': 'role',
+    'experience': 'experience', 'lastlogin': 'lastLogin'
+  };
+
   const newRow = headers.map(h => {
     const norm = h.toString().trim().toLowerCase().replace(/[^a-z]/g, '');
-    const map = {
-      'teamid': 'teamId', 'telegramid': 'telegramId', 'telegramusername': 'telegramUsername',
-      'volunteername': 'volunteerName', 'volunteerid': 'volunteerId'
-    };
     const key = map[norm] || norm;
-    return dataObj[key] !== undefined ? dataObj[key] : (dataObj[norm] !== undefined ? dataObj[norm] : "");
+    let val = dataObj[key] !== undefined ? dataObj[key] : (dataObj[norm] !== undefined ? dataObj[norm] : "");
+    // Используем ПРОБЕЛ для объединения массивов
+    if (Array.isArray(val)) val = val.join(' ');
+    return val;
   });
   sheet.appendRow(newRow);
 }
