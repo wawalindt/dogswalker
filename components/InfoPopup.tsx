@@ -38,10 +38,10 @@ export const InfoPopup: React.FC = () => {
   const conflictNames = getNames(dog.conflicts);
 
   const complexityConfig = {
-      'green': { icon: '🟢', label: 'Спокойная' },
+      'green': { icon: '🟢', label: 'Спокойный' },
       'yellow': { icon: '🟡', label: 'С особенностями' },
-      'orange': { icon: '🟠', label: 'Сложная' },
-      'red': { icon: '⚠️', label: 'Опасная' },
+      'orange': { icon: '🟠', label: 'Сложный' },
+      'red': { icon: '⚠️', label: 'Опасный' },
   }[dog.complexity];
 
   return (
