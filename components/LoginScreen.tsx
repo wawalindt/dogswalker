@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useAppStore } from '../store';
 
 export const LoginScreen: React.FC = () => {
-    const { volunteers, login, fetchData, isSyncing, error } = useAppStore();
+    const { volunteers, login, fetchData, isSyncing, error, setActiveModal } = useAppStore();
     const [logoError, setLogoError] = useState(false);
     
     const activeVolunteers = volunteers.filter(v => v.status === 'active');
@@ -69,9 +69,8 @@ export const LoginScreen: React.FC = () => {
                 )}
                 
                 <div className="mt-6 pt-4 border-t border-slate-300 dark:border-slate-700 flex justify-center relative z-10">
-                    <button onClick={() => fetchData()} className="text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest hover:underline flex items-center gap-1 transition-colors">
-                        {isSyncing && <span className="animate-spin">♻️</span>}
-                        {isSyncing ? 'Обновление...' : 'Обновить список'}
+                    <button onClick={() => setActiveModal('volunteers')} className="text-blue-600 hover:text-blue-800 text-xs font-black uppercase tracking-widest hover:underline flex items-center gap-1 transition-colors">
+                        ➕ Добавить нового волонтёра
                     </button>
                 </div>
                  {error && (

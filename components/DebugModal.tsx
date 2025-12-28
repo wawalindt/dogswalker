@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAppStore } from '../store';
 
@@ -5,7 +6,7 @@ export const DebugModal: React.FC = () => {
   const { groups, setActiveModal, theme } = useAppStore();
 
   return (
-    <div className={`fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 ${theme}`}>
+    <div className={`fixed inset-0 z-[1100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 ${theme}`}>
       <div className="bg-white dark:bg-zinc-950 rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col border border-red-500 overflow-hidden">
         
         {/* Header */}

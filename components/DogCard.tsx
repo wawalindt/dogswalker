@@ -113,33 +113,41 @@ export const DogCardBase = forwardRef<HTMLDivElement, DogCardBaseProps>(({ dog, 
 
         <div className={`mt-auto pt-1 border-t flex items-center justify-between relative z-10 ${isWalked ? 'border-orange-900/10' : 'border-black/5'}`}>
             <div className={`flex items-center gap-2 ${textColor}`}>
-                 <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
-                    Walks:
+                 <span className="text-[16px] font-black uppercase tracking-widest opacity-80">
+                    🦮 
                  </span>
-                 <span className="text-xs font-mono font-bold opacity-80">{dog.walksToday}</span>
+                 <span>{dog.walksToday}</span>
             </div>
 
-            <div className={`flex gap-3 absolute right-1 bottom-0.5`}>
-                {dog.pairs.length > 0 && (
-                    <button 
-                        onClick={handleInfoClick}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        className={`text-lg hover:scale-125 transition-transform cursor-pointer leading-none drop-shadow-sm ${iconFilter}`}
-                        title="Есть друзья"
-                    >
-                        🧩
-                    </button>
-                )}
-                {dog.conflicts.length > 0 && (
-                     <button 
-                        onClick={handleInfoClick}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        className={`text-lg hover:scale-125 transition-transform cursor-pointer leading-none drop-shadow-sm ${hasConflict ? 'opacity-100 scale-125 animate-pulse text-red-600' : `opacity-80 ${iconFilter}`}`}
-                        title="Есть конфликты"
-                    >
-                        ⚡
-                    </button>
-                )}
+            <div className="flex items-center gap-2.5 pr-1">
+                <div className="flex gap-2.5 items-center">
+                    {dog.pairs.length > 0 && (
+                        <button 
+                            onClick={handleInfoClick}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            className={`text-lg hover:scale-125 transition-transform cursor-pointer leading-none drop-shadow-sm ${iconFilter}`}
+                            title="Есть друзья"
+                        >
+                            🧩
+                        </button>
+                    )}
+                    {dog.conflicts.length > 0 && (
+                        <button 
+                            onClick={handleInfoClick}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            className={`text-lg hover:scale-125 transition-transform cursor-pointer leading-none drop-shadow-sm ${hasConflict ? 'opacity-100 scale-125 animate-pulse text-red-600' : `opacity-80 ${iconFilter}`}`}
+                            title="Есть конфликты"
+                        >
+                            ⚡
+                        </button>
+                    )}
+                    
+                    {dog.row && (
+                        <span className={`text-[10px] font-mono font-bold opacity-70 flex items-center gap-0.5 ${textColor}`}>
+                            🏛 {dog.row}
+                        </span>
+                    )}
+                </div>
             </div>
         </div>
     </div>

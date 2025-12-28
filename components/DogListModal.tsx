@@ -155,29 +155,31 @@ const DogSelector: React.FC<DogSelectorProps> = ({ label, selectedIds, otherSele
 };
 
 export const DogListModal: React.FC = () => {
-    const { dogs, addDog, updateDog, setActiveModal, theme, sortOrder, setSortOrder } = useAppStore();
+    const { dogs, addDog, updateDog, setActiveModal, theme, sortOrder, setSortOrder, currentTeamId, teams } = useAppStore();
     const [view, setView] = useState<'list' | 'form'>('list');
     const [formData, setFormData] = useState<Dog>(EmptyDog);
     const [isEditing, setIsEditing] = useState(false);
 
-    // Sorting logic for the Modal List
-    const sortedDogs = useMemo(() => {
-        return [...dogs].sort((a, b) => {
-            if (sortOrder === 'name') {
-                return String(a.name).localeCompare(String(b.name));
-            } else if (sortOrder === 'id') {
-                const aIdNum = parseInt(a.id);
-                const bIdNum = parseInt(b.id);
-                if (!isNaN(aIdNum) && !isNaN(bIdNum)) return aIdNum - bIdNum;
-                return String(a.id).localeCompare(String(b.id));
-            } else if (sortOrder === 'row') {
-                const aRow = a.row || 'zzzz';
-                const bRow = b.row || 'zzzz';
-                return String(aRow).localeCompare(String(bRow), undefined, { numeric: true });
-            }
-            return 0;
-        });
-    }, [dogs, sortOrder]);
+    // Sorting and Filtering logic for the Modal List
+    const filteredAndSortedDogs = useMemo(() => {
+        return dogs
+            .filter(d => d.teamId === currentTeamId)
+            .sort((a, b) => {
+                if (sortOrder === 'row') {
+                    const aRow = a.row || 'zzzz';
+                    const bRow = b.row || 'zzzz';
+                    return String(aRow).localeCompare(String(bRow), undefined, { numeric: true });
+                } else if (sortOrder === 'id') {
+                    const aIdNum = parseInt(a.id);
+                    const bIdNum = parseInt(b.id);
+                    if (!isNaN(aIdNum) && !isNaN(bIdNum)) return aIdNum - bIdNum;
+                    return String(a.id).localeCompare(String(b.id));
+                } else if (sortOrder === 'name') {
+                    return String(a.name).localeCompare(String(b.name));
+                }
+                return 0;
+            });
+    }, [dogs, sortOrder, currentTeamId]);
 
     const handleEdit = (dog: Dog) => {
         setFormData({ ...dog });
@@ -193,7 +195,7 @@ export const DogListModal: React.FC = () => {
         const maxId = numericIds.length > 0 ? Math.max(...numericIds) : 99;
         const nextId = (maxId + 1).toString();
         
-        setFormData({ ...EmptyDog, id: nextId }); 
+        setFormData({ ...EmptyDog, id: nextId, teamId: currentTeamId || (teams.length > 0 ? teams[0].id : 'team_1') }); 
         setIsEditing(false);
         setView('form');
     };
@@ -278,14 +280,21 @@ export const DogListModal: React.FC = () => {
     }[sortOrder];
 
     return (
-        <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 ${theme}`}>
+        <div className={`fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 ${theme}`}>
             <div className="bg-[#e2e8f0] dark:bg-[#1e293b] rounded-2xl shadow-2xl w-full max-lg h-[85vh] flex flex-col border-2 border-slate-300 dark:border-slate-600 overflow-hidden">
                 
                 {/* Header */}
                 <div className="p-4 border-b border-slate-300 dark:border-slate-600 flex justify-between items-center bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-900">
-                    <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight text-engraved">
-                        {view === 'list' ? 'Список животных' : (isEditing ? 'Редактирование' : 'Новая собака')}
-                    </h2>
+                    <div className="flex flex-col">
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight text-engraved">
+                            {view === 'list' ? 'Список животных' : (isEditing ? 'Редактирование' : 'Новая собака')}
+                        </h2>
+                        {view === 'list' && (
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                Команда: {teams.find(t => t.id === currentTeamId)?.name || currentTeamId}
+                            </span>
+                        )}
+                    </div>
                     <div className="flex gap-2 items-center">
                         {view === 'list' && (
                             <>
@@ -312,7 +321,7 @@ export const DogListModal: React.FC = () => {
                     
                     {view === 'list' ? (
                         <div className="space-y-2">
-                            {sortedDogs.map(dog => (
+                            {filteredAndSortedDogs.map(dog => (
                                 <div key={dog.id} onClick={() => handleEdit(dog)} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-300 dark:border-slate-700 active:scale-[0.99] transition-transform cursor-pointer shadow-sm hover:border-blue-400 dark:hover:border-blue-600">
                                     <div className="flex items-center gap-3 overflow-hidden">
                                         <div className="flex flex-col items-center min-w-[30px]">
@@ -339,6 +348,9 @@ export const DogListModal: React.FC = () => {
                                     <span className="text-slate-400 text-lg">›</span>
                                 </div>
                             ))}
+                            {filteredAndSortedDogs.length === 0 && (
+                                <div className="text-center py-20 text-slate-400 italic text-sm">В вашей команде еще нет собак. Нажмите "Добавить"!</div>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-6 pb-4">
@@ -442,6 +454,21 @@ export const DogListModal: React.FC = () => {
                                         onChange={e => setFormData({...formData, weight: Number(e.target.value)})}
                                         className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm" 
                                     />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1 tracking-wider">Принадлежность к команде</label>
+                                    <select 
+                                        value={formData.teamId || ''} 
+                                        onChange={e => setFormData({...formData, teamId: e.target.value})}
+                                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold"
+                                    >
+                                        {teams.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
 

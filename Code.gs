@@ -143,6 +143,29 @@ function findColumn(headers, target) {
   return 0;
 }
 
+/**
+ * Нормализация строк pairs/conflicts для 100% гарантии пробела как разделителя.
+ * Теперь принудительно добавляем пробелы в начало и в конец: " ID1 ID2 "
+ */
+function normalizeListString(val) {
+  if (val === null || val === undefined) return " ";
+  var list = [];
+  if (Array.isArray(val)) {
+    list = val;
+  } else {
+    // Удаляем все лишние символы, превращая их в пробелы
+    list = String(val).replace(/[,;|\t\r\n]/g, ' ').split(/\s+/);
+  }
+  
+  var joined = list
+    .map(function(s) { return String(s).trim(); })
+    .filter(function(s) { return s !== ""; })
+    .join(' ');
+  
+  // 100% защита от слияния: " ID1 ID2 "
+  return joined ? " " + joined + " " : " ";
+}
+
 function finishWalkInSheet(ss, groupId, dogIds, endTime, durationMinutes) {
   const groupSheet = ss.getSheetByName(SHEETS.GROUPS);
   const groupRow = findRowIndexById(groupSheet, groupId);
@@ -216,12 +239,19 @@ function updateRow(ss, sheetName, id, updates) {
   if (!rowIndex) return;
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   for (let key in updates) {
+    const normKey = key.toLowerCase();
     const colIndex = findColumn(headers, key);
     if (colIndex > 0) {
       let val = updates[key];
-      // Используем ПРОБЕЛ для объединения массивов (pairs/conflicts)
-      if (Array.isArray(val)) val = val.join(' ');
-      sheet.getRange(rowIndex, colIndex).setValue(val);
+      const range = sheet.getRange(rowIndex, colIndex);
+      // КРИТИЧНО: Принудительная нормализация списков и установка ТЕКСТОВОГО формата
+      if (normKey === 'pairs' || normKey === 'conflicts') {
+        val = normalizeListString(val);
+        range.setNumberFormat("@"); // Формат "@" заставляет Google Sheets считать ячейку обычным текстом
+      } else if (Array.isArray(val)) {
+        val = val.join(' ');
+      }
+      range.setValue(val);
     }
   }
 }
@@ -276,15 +306,30 @@ function appendRow(ss, sheetName, dataObj) {
     'experience': 'experience', 'lastlogin': 'lastLogin'
   };
 
-  const newRow = headers.map(h => {
+  const newValues = headers.map(h => {
     const norm = h.toString().trim().toLowerCase().replace(/[^a-z]/g, '');
     const key = map[norm] || norm;
     let val = dataObj[key] !== undefined ? dataObj[key] : (dataObj[norm] !== undefined ? dataObj[norm] : "");
-    // Используем ПРОБЕЛ для объединения массивов
-    if (Array.isArray(val)) val = val.join(' ');
+    
+    if (key === 'pairs' || key === 'conflicts') {
+      return normalizeListString(val);
+    } else if (Array.isArray(val)) {
+      return val.join(' ');
+    }
     return val;
   });
-  sheet.appendRow(newRow);
+  
+  sheet.appendRow(newValues);
+  
+  // После вставки устанавливаем формат для списков
+  const lastRow = sheet.getLastRow();
+  headers.forEach((h, i) => {
+    const norm = h.toString().trim().toLowerCase().replace(/[^a-z]/g, '');
+    const key = map[norm] || norm;
+    if (key === 'pairs' || key === 'conflicts') {
+      sheet.getRange(lastRow, i + 1).setNumberFormat("@");
+    }
+  });
 }
 
 function cleanupOldGroups() {

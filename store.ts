@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { Dog, Team, WalkGroup, User, ValidationIssue, ActiveModal } from './types';
 import { INITIAL_DOGS, INITIAL_GROUPS, TEAMS, VOLUNTEERS } from './mockData';
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbxKNV2BSNuPd_mm7MsRXAWyKBQM4yqC5JDyscmzdaK9Y80FkXw-2DeeExdGLVllU5d1/exec'; 
+const API_URL = 'https://script.google.com/macros/s/AKfycbwhnn5aiIyh6izJtGXCrP-O_wg2u-fQEbtlWnzDd2ewqpzurob3Bmrfh93DZ1D_BK31/exec'; 
 
 type Theme = 'light' | 'dark';
 type SidebarFilter = 'all' | 'available';
@@ -38,6 +38,7 @@ interface AppState {
   initTelegram: () => void;
   login: (user: User) => void;
   setTeam: (teamId: string) => void;
+  setTeams: (teams: Team[]) => void;
   toggleTheme: () => void;
   setActiveModal: (modal: ActiveModal) => void;
   setInfoDogId: (id: string | null) => void;
@@ -83,9 +84,21 @@ const sendAction = async (action: string, payload: any) => {
 
 const parseList = (input: any): string[] => {
     if (!input) return [];
-    if (Array.isArray(input)) return input.map(String);
-    // Поддержка и запятых, и пробелов как разделителей
-    return String(input).replace(/,/g, ' ').split(/\s+/).map(s => s.trim()).filter(s => s !== '');
+    if (Array.isArray(input)) return input.map(String).filter(s => s.trim() !== '');
+    return String(input)
+        .replace(/[,;|\t\r\n]/g, ' ')
+        .split(/\s+/)
+        .map(s => s.trim())
+        .filter(s => s !== '');
+};
+
+const formatListForServer = (input: string[] | string | undefined): string => {
+    const list = Array.isArray(input) ? input : parseList(input);
+    const joined = list
+        .map(s => String(s).trim())
+        .filter(s => s !== "")
+        .join(' ');
+    return joined ? ` ${joined} ` : " ";
 };
 
 const getHHMM = (date: Date): string => {
@@ -133,7 +146,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   saveSetting: (key, value) => {
-      if (key === 'theme') return; // Больше не сохраняем тему на сервере
+      if (key === 'theme') return; 
       sendAction('saveSetting', { key, value });
   },
 
@@ -154,12 +167,11 @@ export const useAppStore = create<AppState>((set, get) => ({
               const remoteVersion = Number(remote || 0);
               
               if (remoteVersion > state.syncVersion) {
-                  console.log(`[SYNC] Found new version on server: ${remoteVersion}`);
                   await state.fetchData(true);
               }
           }
       } catch (e) {
-          // Background error, ignore
+          // Background error
       }
   },
 
@@ -192,7 +204,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               const sanitizedDogs = (data.dogs || []).map((d: any) => ({
                   ...d,
                   id: String(d.id), 
-                  name: String(d.name || ''), // КРИТИЧНО: Приведение к строке
+                  name: String(d.name || ''),
                   groupId: (!d.groupId || d.groupId === 'null' || d.groupId === '') ? null : String(d.groupId),
                   walksToday: Number(d.walksToday || 0),
                   age: Number(d.age || 0),
@@ -233,6 +245,12 @@ export const useAppStore = create<AppState>((set, get) => ({
                       if (s.key === 'walkDuration') settingsUpdates.walkDuration = Number(s.value);
                       if (s.key === 'autoAddFriends') settingsUpdates.autoAddFriends = String(s.value) === 'true';
                       if (s.key === 'currentTeamId') settingsUpdates.currentTeamId = s.value;
+                      if (s.key === 'teams_data') {
+                          try {
+                              const parsedTeams = JSON.parse(s.value);
+                              if (Array.isArray(parsedTeams)) settingsUpdates.teams = parsedTeams;
+                          } catch (e) { console.error("Failed to parse teams_data"); }
+                      }
                       if (s.key === versionKey) remoteVersion = Number(s.value);
                   });
               }
@@ -253,55 +271,31 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   initTelegram: () => {
-    console.log('🔍 [TG] initTelegram called');
     const tg = (window as any).Telegram?.WebApp;
     const volunteers = get().volunteers;
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    const debugUserId = urlParams.get('tg_user_id');
-    const debugUsername = urlParams.get('tg_username');
-
-    if (tg) {
-        tg.ready(); 
-        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-            const tgUser = tg.initDataUnsafe.user;
-            let found = volunteers.find(v => 
-                (v.telegramId && String(v.telegramId).trim() === String(tgUser.id)) ||
-                (v.telegramUsername && tgUser.username && v.telegramUsername.toLowerCase().trim() === tgUser.username.toLowerCase().trim())
-            );
-            if (found) {
-                console.log(`✅ [TG] Авторизован через WebApp: ${found.name}`);
-                get().login(found);
-                tg.expand();
-                return;
-            }
-        }
-    }
-
-    // Вход через параметры URL (имитация "командной строки" или внешнего вызова)
-    if (debugUserId) {
-        const found = volunteers.find(v => String(v.telegramId).trim() === String(debugUserId).trim());
+    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        const tgUser = tg.initDataUnsafe.user;
+        let found = volunteers.find(v => 
+            (v.telegramId && String(v.telegramId).trim() === String(tgUser.id)) ||
+            (v.telegramUsername && tgUser.username && v.telegramUsername.toLowerCase().trim() === tgUser.username.toLowerCase().trim())
+        );
         if (found) {
-            console.log(`✅ [TG] Авторизован через URL ID: ${found.name}`);
             get().login(found);
-            return;
-        }
-    }
-
-    if (debugUsername) {
-        // Убираем @ если пользователь ввел его в параметре
-        const cleanUsername = debugUsername.replace(/^@/, '').toLowerCase().trim();
-        const found = volunteers.find(v => v.telegramUsername && v.telegramUsername.toLowerCase().trim() === cleanUsername);
-        if (found) {
-            console.log(`✅ [TG] Авторизован через URL Username: ${found.name}`);
-            get().login(found);
-            return;
+            tg.expand();
         }
     }
   },
 
-  login: (user) => set({ currentUser: user.name, currentUserId: user.id }),
+  login: (user) => {
+      const userTeamId = user.teamId || get().currentTeamId || (get().teams.length > 0 ? get().teams[0].id : 'team_1');
+      set({ 
+        currentUser: user.name, 
+        currentUserId: user.id, 
+        currentTeamId: userTeamId
+      });
+  },
   setTeam: (teamId) => { set({ currentTeamId: teamId }); get().saveSetting('currentTeamId', teamId); },
+  setTeams: (teams) => { set({ teams }); get().saveSetting('teams_data', JSON.stringify(teams)); },
   toggleTheme: () => {
       set((state) => {
           const newTheme = state.theme === 'dark' ? 'light' : 'dark';
@@ -344,30 +338,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   deleteGroup: (groupId) => {
      const matchId = String(groupId);
-     set((state) => {
-        const updatedGroups = state.groups.filter(g => String(g.id) !== matchId);
-        const updatedDogs = state.dogs.map(dog => 
-            String(dog.groupId) === matchId ? { ...dog, groupId: null } : dog
-        );
-        return { 
-            dogs: updatedDogs, 
-            groups: updatedGroups, 
-            syncVersion: state.syncVersion + 1,
-            editingGroupId: state.editingGroupId === groupId ? null : state.editingGroupId 
-        };
-     });
+     set((state) => ({
+        dogs: state.dogs.map(dog => String(dog.groupId) === matchId ? { ...dog, groupId: null } : dog), 
+        groups: state.groups.filter(g => String(g.id) !== matchId), 
+        syncVersion: state.syncVersion + 1,
+        editingGroupId: state.editingGroupId === groupId ? null : state.editingGroupId 
+     }));
      sendAction('deleteGroup', { id: groupId });
   },
   moveDog: (dogIds, targetGroupId) => {
     const ids = Array.isArray(dogIds) ? dogIds : [dogIds];
-    const state = get();
     const tGid = targetGroupId ? String(targetGroupId) : null;
-
     set((state) => ({ 
         dogs: state.dogs.map((dog) => ids.includes(dog.id) ? { ...dog, groupId: tGid } : dog),
         syncVersion: state.syncVersion + 1 
     }));
-    
     ids.forEach(id => sendAction('updateDog', { id, updates: { groupId: tGid || "" } }));
   },
   startWalk: (groupId) => {
@@ -386,22 +371,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     const endTime = getHHMM(now);
     const state = get();
     const matchId = String(groupId);
-    
-    const finishingDogIds = state.dogs
-        .filter(d => String(d.groupId) === matchId)
-        .map(d => d.id);
-        
+    const finishingDogIds = state.dogs.filter(d => String(d.groupId) === matchId).map(d => d.id);
     set((state) => ({
         groups: state.groups.filter(g => String(g.id) !== matchId),
         dogs: state.dogs.map(dog => String(dog.groupId) === matchId ? { ...dog, walksToday: dog.walksToday + 1, lastWalkTime: endTime, groupId: null } : dog),
         syncVersion: state.syncVersion + 1 
     }));
-    
-    sendAction('finishWalk', { 
-        groupId: matchId, 
-        dogIds: finishingDogIds, 
-        endTime 
-    });
+    sendAction('finishWalk', { groupId: matchId, dogIds: finishingDogIds, endTime });
   },
   validateGroup: (groupId) => {
     const state = get();
@@ -409,35 +385,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     const groupDogs = state.dogs.filter(d => String(d.groupId) === matchId);
     const groupDogIds = new Set(groupDogs.map(d => d.id));
     const issues: ValidationIssue[] = [];
-
     if (groupDogs.length === 0) return [{ type: 'warning', message: 'Группа пуста.' }];
-
     groupDogs.forEach(dog => {
         const enemiesInGroup = groupDogs.filter(other => dog.conflicts.includes(other.id) || other.conflicts.includes(dog.id));
         if (enemiesInGroup.length > 0) {
-            enemiesInGroup.forEach(enemy => { 
-                if (dog.id < enemy.id) {
-                    issues.push({ type: 'critical', message: `Конфликт: ${dog.name} и ${enemy.name}!` }); 
-                }
-            });
+            enemiesInGroup.forEach(enemy => { if (dog.id < enemy.id) issues.push({ type: 'critical', message: `Конфликт: ${dog.name} и ${enemy.name}!` }); });
         }
-
         if (dog.pairs && dog.pairs.length > 0) {
             dog.pairs.forEach(friendId => {
                 if (!groupDogIds.has(friendId)) {
                     const friendDog = state.dogs.find(d => d.id === friendId);
-                    if (!friendDog) return;
-                    const friendGroup = friendDog.groupId ? state.groups.find(g => String(g.id) === String(friendDog.groupId)) : null;
-                    const isFriendActive = friendGroup && friendGroup.status === 'active';
-                    if (!friendDog.isHidden && 
-                        friendDog.health === 'OK' && 
-                        friendDog.walksToday === 0 && 
-                        !isFriendActive &&
-                        friendDog.teamId === dog.teamId) {
+                    if (friendDog && !friendDog.isHidden && friendDog.health === 'OK' && friendDog.walksToday === 0 && friendDog.teamId === dog.teamId) {
                         const msg = `${dog.name} и ${friendDog.name} обычно гуляют вместе.`;
-                        if (!issues.some(i => i.message === msg)) {
-                            issues.push({ type: 'warning', message: msg });
-                        }
+                        if (!issues.some(i => i.message === msg)) issues.push({ type: 'warning', message: msg });
                     }
                 }
             });
@@ -446,32 +406,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     return issues; 
   },
   addDog: (dog) => {
-      set((state) => ({ 
-          dogs: [...state.dogs, dog],
-          syncVersion: state.syncVersion + 1 
-      }));
-      // Для Google Sheets объединяем списки через ПРОБЕЛ
-      sendAction('addDog', { 
-          ...dog, 
-          complexity: dog.complexity, 
-          pairs: dog.pairs.join(' '), 
-          conflicts: dog.conflicts.join(' ') 
-      });
+      const dogWithTeam = { ...dog, teamId: dog.teamId || get().currentTeamId || 'team_1' };
+      set((state) => ({ dogs: [...state.dogs, dogWithTeam], syncVersion: state.syncVersion + 1 }));
+      sendAction('addDog', { ...dogWithTeam, pairs: formatListForServer(dogWithTeam.pairs), conflicts: formatListForServer(dogWithTeam.conflicts) });
   },
   updateDog: (id, updates) => {
-      // Подготовка данных для сервера: массивы в строку через пробел
       const sanitizedUpdates = { ...updates };
-      if (sanitizedUpdates.pairs && Array.isArray(sanitizedUpdates.pairs)) {
-          sanitizedUpdates.pairs = (sanitizedUpdates.pairs as string[]).join(' ') as any;
-      }
-      if (sanitizedUpdates.conflicts && Array.isArray(sanitizedUpdates.conflicts)) {
-          sanitizedUpdates.conflicts = (sanitizedUpdates.conflicts as string[]).join(' ') as any;
-      }
-
-      set((state) => ({ 
-          dogs: state.dogs.map(d => d.id === id ? { ...d, ...updates } : d),
-          syncVersion: state.syncVersion + 1 
-      }));
+      if (sanitizedUpdates.pairs !== undefined) sanitizedUpdates.pairs = formatListForServer(sanitizedUpdates.pairs) as any;
+      if (sanitizedUpdates.conflicts !== undefined) sanitizedUpdates.conflicts = formatListForServer(sanitizedUpdates.conflicts) as any;
+      set((state) => ({ dogs: state.dogs.map(d => d.id === id ? { ...d, ...updates } : d), syncVersion: state.syncVersion + 1 }));
       sendAction('updateDog', { id, updates: sanitizedUpdates });
   },
   toggleDogVisibility: (dogId) => {
@@ -480,16 +423,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   resetWalks: () => {
       if (confirm("Сбросить счетчик прогулок?")) {
-        set((state) => ({ 
-            dogs: state.dogs.map(d => ({ ...d, walksToday: 0, lastWalkTime: undefined, groupId: null })), 
-            groups: [],
-            syncVersion: state.syncVersion + 1 
-        }));
+        set((state) => ({ dogs: state.dogs.map(d => ({ ...d, walksToday: 0, lastWalkTime: undefined, groupId: null })), groups: [], syncVersion: state.syncVersion + 1 }));
         sendAction('resetWalks', {});
       }
   },
   addVolunteer: (user) => { 
-      const userWithTeam = { ...user, teamId: get().currentTeamId || '' };
+      const userWithTeam = { ...user, teamId: user.teamId || get().currentTeamId || (get().teams.length > 0 ? get().teams[0].id : 'team_1') };
       set((state) => ({ volunteers: [...state.volunteers, userWithTeam] })); 
       sendAction('addVolunteer', userWithTeam); 
   },

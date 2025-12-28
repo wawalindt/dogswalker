@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { User } from '../types';
 
@@ -15,10 +15,18 @@ const EmptyUser: User = {
 };
 
 export const VolunteerListModal: React.FC = () => {
-    const { volunteers, addVolunteer, updateVolunteer, setActiveModal, theme, currentTeamId } = useAppStore();
+    const { volunteers, teams, addVolunteer, updateVolunteer, setActiveModal, theme, currentTeamId, currentUserId } = useAppStore();
     const [view, setView] = useState<'list' | 'form'>('list');
     const [formData, setFormData] = useState<User>(EmptyUser);
     const [isEditing, setIsEditing] = useState(false);
+
+    useEffect(() => {
+        if (!currentUserId && volunteers.length > 0) {
+            handleAdd();
+        } else if (volunteers.length === 0) {
+            handleAdd();
+        }
+    }, []);
 
     const teamVolunteers = useMemo(() => {
         return volunteers.filter(v => v.teamId === currentTeamId || !v.teamId);
@@ -31,7 +39,7 @@ export const VolunteerListModal: React.FC = () => {
     };
 
     const handleAdd = () => {
-        setFormData({ ...EmptyUser, id: `u${Date.now()}`, teamId: currentTeamId || '' });
+        setFormData({ ...EmptyUser, id: `u${Date.now()}`, teamId: currentTeamId || (teams.length > 0 ? teams[0].id : 'team_1') });
         setIsEditing(false);
         setView('form');
     };
@@ -44,11 +52,13 @@ export const VolunteerListModal: React.FC = () => {
         } else {
             addVolunteer(formData);
         }
-        setView('list');
+        
+        // Закрываем всё модальное окно после сохранения
+        setActiveModal('none');
     };
 
     return (
-        <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 ${theme}`}>
+        <div className={`fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 ${theme}`}>
             <div className="bg-[#e2e8f0] dark:bg-[#1e293b] rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col border-2 border-slate-300 dark:border-slate-600 overflow-hidden">
                 
                 {/* Header */}
@@ -69,7 +79,7 @@ export const VolunteerListModal: React.FC = () => {
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto bg-[#f1f5f9] dark:bg-[#0f172a] p-4">
+                <div className="flex-1 overflow-y-auto bg-[#f1f5f9] dark:bg-[#0f172a] p-4 no-scrollbar">
                     
                     {view === 'list' ? (
                         <div className="space-y-3">
@@ -93,7 +103,7 @@ export const VolunteerListModal: React.FC = () => {
                                      </div>
                                 </div>
                             ))}
-                            {teamVolunteers.length === 0 && <div className="text-center py-10 text-slate-400 text-sm">В этой команде пока нет волонтеров</div>}
+                            {teamVolunteers.length === 0 && <div className="text-center py-10 text-slate-400 text-sm italic">Список пуст. Добавьте первого участника!</div>}
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -170,12 +180,16 @@ export const VolunteerListModal: React.FC = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1 tracking-wider">Команда (ID)</label>
-                                    <input 
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1 tracking-wider">Команда</label>
+                                    <select 
                                         value={formData.teamId || ''} 
                                         onChange={e => setFormData({...formData, teamId: e.target.value})}
-                                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm" 
-                                    />
+                                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold shadow-sm"
+                                    >
+                                        {teams.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
 
